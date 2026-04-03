@@ -1,11 +1,12 @@
 import pg from 'pg';
 import type { Env } from '../config/env.ts';
+import { migration001CreatePaymentIntents } from './migrations/001_create_payment_intents.ts';
 
 const { Pool } = pg;
 
 export type DbClient = {
   configured: boolean;
-  pool?: InstanceType<typeof Pool>;
+  pool?: Pool;
 };
 
 export type PaymentIntentRecord = {
@@ -16,6 +17,13 @@ export type PaymentIntentRecord = {
   status: string;
   createdAt: string;
 };
+
+type Migration = {
+  id: string;
+  up: (pool: Pool) => Promise<void>;
+};
+
+const MIGRATIONS: Migration[] = [migration001CreatePaymentIntents];
 
 export function createDbClient(env: Env): DbClient {
   if (!env.DATABASE_URL) {
@@ -32,21 +40,35 @@ export function createDbClient(env: Env): DbClient {
   };
 }
 
-export async function ensureSchema(db: DbClient): Promise<void> {
+export async function runMigrations(db: DbClient): Promise<void> {
   if (!db.pool) {
     return;
   }
 
   await db.pool.query(`
-    CREATE TABLE IF NOT EXISTS payment_intents (
-      challenge_id TEXT PRIMARY KEY,
-      nonce TEXT NOT NULL,
-      merchant_id TEXT NOT NULL,
-      amount TEXT NOT NULL,
-      status TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id TEXT PRIMARY KEY,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+
+  for (const migration of MIGRATIONS) {
+    const existing = await db.pool.query<{ id: string }>(
+      `SELECT id FROM schema_migrations WHERE id = $1`,
+      [migration.id]
+    );
+
+    if (existing.rowCount && existing.rowCount > 0) {
+      continue;
+    }
+
+    await migration.up(db.pool);
+
+    await db.pool.query(
+      `INSERT INTO schema_migrations (id) VALUES ($1)`,
+      [migration.id]
+    );
+  }
 }
 
 export async function checkDbReady(db: DbClient): Promise<boolean> {
