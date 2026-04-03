@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
+import type { DbClient } from '../db/client.ts';
+import { checkDbReady } from '../db/client.ts';
 
-export async function healthRoutes(app: FastifyInstance) {
+export async function healthRoutes(app: FastifyInstance, db: DbClient) {
   app.get('/healthz', async () => {
     return {
       ok: true,
@@ -9,10 +11,17 @@ export async function healthRoutes(app: FastifyInstance) {
   });
 
   app.get('/readyz', async () => {
+    const dbReady = await checkDbReady(db);
+
     return {
-      ok: true,
-      ready: true,
+      ok: dbReady,
+      ready: dbReady,
       service: 'xcf-orchestrator',
+      checks: {
+        process: true,
+        dbConfigured: db.configured,
+        dbReady,
+      },
     };
   });
 }
