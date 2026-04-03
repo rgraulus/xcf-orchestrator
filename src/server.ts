@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import dotenv from 'dotenv';
 import { loadEnv } from './config/env.ts';
-import { createDbClient } from './db/client.ts';
+import { createDbClient, ensureSchema } from './db/client.ts';
 import { healthRoutes } from './routes/health.ts';
 import { internalPaymentRoutes } from './routes/internal/payments.ts';
 
@@ -15,8 +15,9 @@ const app = Fastify({
 });
 
 async function start() {
+  await ensureSchema(db);
   await healthRoutes(app, db);
-  await internalPaymentRoutes(app);
+  await internalPaymentRoutes(app, db);
 
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
   console.log(`xcf-orchestrator listening on http://localhost:${env.PORT}`);
