@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '../../db/client.ts';
+import { assertInternalAuth } from '../../auth/internal.ts';
 import {
   getPaymentIntentByChallengeId,
   insertPaymentIntent,
@@ -14,9 +15,14 @@ type CreateIntentBody = {
 
 export async function internalPaymentRoutes(
   app: FastifyInstance,
-  db: DbClient
+  db: DbClient,
+  internalApiKey?: string
 ) {
   app.post('/internal/payments/intents', async (request, reply) => {
+    if (!assertInternalAuth(request, reply, internalApiKey)) {
+      return;
+    }
+
     const body = request.body as Partial<CreateIntentBody> | undefined;
 
     if (
@@ -58,6 +64,10 @@ export async function internalPaymentRoutes(
   });
 
   app.get('/internal/payments/:challengeId', async (request, reply) => {
+    if (!assertInternalAuth(request, reply, internalApiKey)) {
+      return;
+    }
+
     const { challengeId } = request.params as { challengeId: string };
 
     try {
