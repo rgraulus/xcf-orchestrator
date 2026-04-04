@@ -4,6 +4,7 @@ import { assertInternalAuth } from '../../auth/internal.ts';
 import {
   getPaymentIntentByChallengeId,
   insertPaymentIntent,
+  insertPaymentProof,
 } from '../../db/client.ts';
 
 type CreateIntentBody = {
@@ -58,6 +59,64 @@ export async function internalPaymentRoutes(
       return {
         ok: false,
         error: 'intent_insert_failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  });
+
+
+  app.post('/internal/payments/proof', async (request, reply) => {
+    if (!assertInternalAuth(request, reply, internalApiKey)) {
+      return;
+    }
+
+    const body = request.body as
+      | {
+          challengeId?: string;
+          proofType?: string;
+          proofPayload?: unknown;
+        }
+      | undefined;
+
+    if (!body?.challengeId || !body?.proofType || !body?.proofPayload) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: 'invalid_request',
+        message: 'challengeId, proofType, and proofPayload are required.',
+      };
+    }
+
+    try {
+      const intent = await getPaymentIntentByChallengeId(
+        db,
+        body.challengeId
+      );
+
+      if (!intent) {
+        reply.code(404);
+        return {
+          ok: false,
+          error: 'intent_not_found',
+          challengeId: body.challengeId,
+        };
+      }
+
+      await insertPaymentProof(db, {
+        challengeId: body.challengeId,
+        proofType: body.proofType,
+        proofPayload: body.proofPayload,
+      });
+
+      return {
+        ok: true,
+        accepted: true,
+      };
+    } catch (error) {
+      reply.code(500);
+      return {
+        ok: false,
+        error: 'proof_insert_failed',
         message: error instanceof Error ? error.message : 'Unknown error',
       };
     }
