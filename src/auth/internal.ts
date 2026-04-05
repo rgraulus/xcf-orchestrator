@@ -5,8 +5,13 @@ export function assertInternalAuth(
   reply: FastifyReply,
   expectedApiKey?: string
 ): boolean {
-  if (!expectedApiKey) {
-    return true;
+  if (!expectedApiKey || expectedApiKey.trim() === '') {
+    reply.code(500).send({
+      ok: false,
+      error: 'internal_auth_misconfigured',
+      message: 'INTERNAL_API_KEY is not configured.',
+    });
+    return false;
   }
 
   const providedApiKey = request.headers['x-internal-api-key'];
