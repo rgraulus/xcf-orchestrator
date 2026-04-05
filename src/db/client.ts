@@ -222,3 +222,25 @@ export async function insertPaymentProof(
     ]
   );
 }
+
+export async function paymentProofExists(
+  db: DbClient,
+  challengeId: string
+): Promise<boolean> {
+  if (!db.pool) {
+    throw new Error('DATABASE_URL is not configured');
+  }
+
+  const result = await db.pool.query<{ exists: boolean }>(
+    `
+      SELECT EXISTS (
+        SELECT 1
+        FROM payment_proofs
+        WHERE challenge_id = $1
+      ) AS exists
+    `,
+    [challengeId]
+  );
+
+  return Boolean(result.rows[0]?.exists);
+}
