@@ -276,3 +276,53 @@ export async function insertPaymentSettlement(
     ]
   );
 }
+
+
+export type PaymentSettlementRecord = {
+  challengeId: string;
+  settlementStatus: string;
+  settlementPayload: unknown;
+  createdAt: string;
+};
+
+export async function getLatestPaymentSettlementByChallengeId(
+  db: DbClient,
+  challengeId: string
+): Promise<PaymentSettlementRecord | null> {
+  if (!db.pool) {
+    throw new Error('DATABASE_URL is not configured');
+  }
+
+  const result = await db.pool.query<{
+    challenge_id: string;
+    settlement_status: string;
+    settlement_payload: unknown;
+    created_at: Date;
+  }>(
+    `
+      SELECT
+        challenge_id,
+        settlement_status,
+        settlement_payload,
+        created_at
+      FROM payment_settlements
+      WHERE challenge_id = $1
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+    `,
+    [challengeId]
+  );
+
+  const row = result.rows[0];
+
+  if (!row) {
+    return null;
+  }
+
+  return {
+    challengeId: row.challenge_id,
+    settlementStatus: row.settlement_status,
+    settlementPayload: row.settlement_payload,
+    createdAt: row.created_at.toISOString(),
+  };
+}

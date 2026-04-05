@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '../../db/client.ts';
 import { assertInternalAuth } from '../../auth/internal.ts';
 import {
+  getLatestPaymentSettlementByChallengeId,
   getPaymentIntentByChallengeId,
   insertPaymentIntent,
   insertPaymentProof,
@@ -221,6 +222,42 @@ export async function internalPaymentRoutes(
       return {
         ok: false,
         error: 'settlement_insert_failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  });
+
+  app.get('/internal/settlements/:challengeId', async (request, reply) => {
+    if (!assertInternalAuth(request, reply, internalApiKey)) {
+      return;
+    }
+
+    const { challengeId } = request.params as { challengeId: string };
+
+    try {
+      const settlement = await getLatestPaymentSettlementByChallengeId(
+        db,
+        challengeId
+      );
+
+      if (!settlement) {
+        reply.code(404);
+        return {
+          ok: false,
+          error: 'settlement_not_found',
+          challengeId,
+        };
+      }
+
+      return {
+        ok: true,
+        settlement,
+      };
+    } catch (error) {
+      reply.code(500);
+      return {
+        ok: false,
+        error: 'settlement_lookup_failed',
         message: error instanceof Error ? error.message : 'Unknown error',
       };
     }
