@@ -2,6 +2,7 @@ import pg from 'pg';
 import type { Env } from '../config/env.ts';
 import { migration001CreatePaymentIntents } from './migrations/001_create_payment_intents.ts';
 import { migration002CreatePaymentProofs } from './migrations/002_create_payment_proofs.ts';
+import { migration003CreatePaymentSettlements } from './migrations/003_create_payment_settlements.ts';
 
 const { Pool } = pg;
 
@@ -27,6 +28,7 @@ type Migration = {
 const MIGRATIONS: Migration[] = [
   migration001CreatePaymentIntents,
   migration002CreatePaymentProofs,
+  migration003CreatePaymentSettlements,
 ];
 
 export function createDbClient(env: Env): DbClient {
@@ -243,4 +245,34 @@ export async function paymentProofExists(
   );
 
   return Boolean(result.rows[0]?.exists);
+}
+
+
+export async function insertPaymentSettlement(
+  db: DbClient,
+  input: {
+    challengeId: string;
+    settlementStatus: string;
+    settlementPayload: unknown;
+  }
+): Promise<void> {
+  if (!db.pool) {
+    throw new Error('DATABASE_URL is not configured');
+  }
+
+  await db.pool.query(
+    `
+      INSERT INTO payment_settlements (
+        challenge_id,
+        settlement_status,
+        settlement_payload
+      )
+      VALUES ($1, $2, $3)
+    `,
+    [
+      input.challengeId,
+      input.settlementStatus,
+      JSON.stringify(input.settlementPayload),
+    ]
+  );
 }
