@@ -5,6 +5,7 @@ import {
   getPaymentIntentByChallengeId,
   insertPaymentIntent,
   insertPaymentProof,
+  paymentProofExists,
 } from '../../db/client.ts';
 
 type CreateIntentBody = {
@@ -117,6 +118,54 @@ export async function internalPaymentRoutes(
       return {
         ok: false,
         error: 'proof_insert_failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  });
+
+  app.post('/internal/payments/release-check', async (request, reply) => {
+    if (!assertInternalAuth(request, reply, internalApiKey)) {
+      return;
+    }
+
+    const body = request.body as
+      | {
+          challengeId?: string;
+        }
+      | undefined;
+
+    if (!body?.challengeId) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: 'invalid_request',
+        message: 'challengeId is required.',
+      };
+    }
+
+    try {
+      const intent = await getPaymentIntentByChallengeId(db, body.challengeId);
+
+      if (!intent) {
+        reply.code(404);
+        return {
+          ok: false,
+          error: 'intent_not_found',
+          challengeId: body.challengeId,
+        };
+      }
+
+      const ready = await paymentProofExists(db, body.challengeId);
+
+      return {
+        ok: true,
+        ready,
+      };
+    } catch (error) {
+      reply.code(500);
+      return {
+        ok: false,
+        error: 'release_check_failed',
         message: error instanceof Error ? error.message : 'Unknown error',
       };
     }
