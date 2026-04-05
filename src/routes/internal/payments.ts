@@ -5,6 +5,7 @@ import {
   getPaymentIntentByChallengeId,
   insertPaymentIntent,
   insertPaymentProof,
+  insertPaymentSettlement,
   paymentProofExists,
 } from '../../db/client.ts';
 
@@ -166,6 +167,60 @@ export async function internalPaymentRoutes(
       return {
         ok: false,
         error: 'release_check_failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  });
+
+  app.post('/internal/settlements', async (request, reply) => {
+    if (!assertInternalAuth(request, reply, internalApiKey)) {
+      return;
+    }
+
+    const body = request.body as
+      | {
+          challengeId?: string;
+          settlementStatus?: string;
+          settlementPayload?: unknown;
+        }
+      | undefined;
+
+    if (!body?.challengeId || !body?.settlementStatus || !body?.settlementPayload) {
+      reply.code(400);
+      return {
+        ok: false,
+        error: 'invalid_request',
+        message: 'challengeId, settlementStatus, and settlementPayload are required.',
+      };
+    }
+
+    try {
+      const intent = await getPaymentIntentByChallengeId(db, body.challengeId);
+
+      if (!intent) {
+        reply.code(404);
+        return {
+          ok: false,
+          error: 'intent_not_found',
+          challengeId: body.challengeId,
+        };
+      }
+
+      await insertPaymentSettlement(db, {
+        challengeId: body.challengeId,
+        settlementStatus: body.settlementStatus,
+        settlementPayload: body.settlementPayload,
+      });
+
+      return {
+        ok: true,
+        accepted: true,
+      };
+    } catch (error) {
+      reply.code(500);
+      return {
+        ok: false,
+        error: 'settlement_insert_failed',
         message: error instanceof Error ? error.message : 'Unknown error',
       };
     }
