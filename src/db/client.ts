@@ -121,6 +121,12 @@ export async function insertPaymentIntent(
         status
       )
       VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (challenge_id) DO UPDATE
+      SET
+        nonce = EXCLUDED.nonce,
+        merchant_id = EXCLUDED.merchant_id,
+        amount = EXCLUDED.amount,
+        status = payment_intents.status
       RETURNING
         challenge_id,
         nonce,
