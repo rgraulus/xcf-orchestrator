@@ -2,6 +2,7 @@ import type { CrpClient } from './client.js';
 import type {
   CrpPaymentSearchItem,
   CrpReceiptPayload,
+  CrpSearchPaymentsFailure,
   SettlementReadinessInput,
   SettlementReadinessResult,
 } from './types.js';
@@ -142,6 +143,35 @@ function isCorrelated(input: SettlementReadinessInput, item: CrpPaymentSearchIte
   return true;
 }
 
+function mapClientFailureToReadiness(
+  failure: CrpSearchPaymentsFailure,
+): SettlementReadinessResult {
+  if (failure.kind === 'unreachable') {
+    return {
+      ok: true,
+      ready: false,
+      tier: 'NOT_SEEN',
+      reason: 'crp_unavailable',
+    };
+  }
+
+  if (failure.kind === 'http_error') {
+    return {
+      ok: true,
+      ready: false,
+      tier: 'NOT_SEEN',
+      reason: 'crp_http_error',
+    };
+  }
+
+  return {
+    ok: true,
+    ready: false,
+    tier: 'NOT_SEEN',
+    reason: 'crp_invalid_response',
+  };
+}
+
 export function createCrpWrapper(client: CrpClient): CrpWrapper {
   return {
     async isSettlementReady(input: SettlementReadinessInput): Promise<SettlementReadinessResult> {
@@ -154,59 +184,54 @@ export function createCrpWrapper(client: CrpClient): CrpWrapper {
         };
       }
 
-      try {
-        const response = await client.searchPayments({
-          merchantId: input.merchantId,
-          nonce: input.nonce,
-          network: input.network,
-          tokenId: input.asset?.tokenId,
-          limit: 10,
-        });
+      const searchResult = await client.searchPayments({
+        merchantId: input.merchantId,
+        nonce: input.nonce,
+        network: input.network,
+        tokenId: input.asset?.tokenId,
+        limit: 10,
+      });
 
-        const matches = (response.matches ?? []).filter((item) => isCorrelated(input, item));
+      if (!searchResult.ok) {
+        return mapClientFailureToReadiness(searchResult);
+      }
 
-        if (matches.length === 0) {
-          return {
-            ok: true,
-            ready: false,
-            tier: 'NOT_SEEN',
-            reason: 'settlement_not_found',
-          };
-        }
+      const matches = (searchResult.data.matches ?? []).filter((item) => isCorrelated(input, item));
 
-        if (matches.length > 1) {
-          return {
-            ok: true,
-            ready: false,
-            tier: 'NOT_SEEN',
-            reason: 'settlement_ambiguous',
-          };
-        }
-
-        const match = matches[0];
-        const classification = classifyMatch(match);
-
-        return {
-          ok: true,
-          ready: classification.ready,
-          tier: classification.tier,
-          reason: classification.reason,
-          evidence: {
-            source: 'crp',
-            txHash: classification.txHash,
-            paymentStatus: classification.paymentStatus,
-            finalized: classification.finalized,
-            matchedBy: deriveMatchedBy(input, match),
-          },
-        };
-      } catch {
+      if (matches.length === 0) {
         return {
           ok: true,
           ready: false,
           tier: 'NOT_SEEN',
-          reason: 'crp_unavailable',
+          reason: 'settlement_not_found',
         };
       }
+
+      if (matches.length > 1) {
+        return {
+          ok: true,
+          ready: false,
+          tier: 'NOT_SEEN',
+          reason: 'settlement_ambiguous',
+        };
+      }
+
+      const match = matches[0];
+      const classification = classifyMatch(match);
+
+      return {
+        ok: true,
+        ready: classification.ready,
+        tier: classification.tier,
+        reason: classification.reason,
+        evidence: {
+          source: 'crp',
+          txHash: classification.txHash,
+          paymentStatus: classification.paymentStatus,
+          finalized: classification.finalized,
+          matchedBy: deriveMatchedBy(input, match),
+        },
+      };
     },
   };
 }
