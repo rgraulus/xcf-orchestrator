@@ -1,9 +1,9 @@
 import Fastify from 'fastify';
 import dotenv from 'dotenv';
-import { loadEnv } from './config/env.ts';
-import { createDbClient, runMigrations } from './db/client.ts';
-import { healthRoutes } from './routes/health.ts';
-import { internalPaymentRoutes } from './routes/internal/payments.ts';
+import { loadEnv } from './config/env.js';
+import { createDbClient, runMigrations } from './db/client.js';
+import { healthRoutes } from './routes/health.js';
+import { internalPaymentRoutes } from './routes/internal/payments.js';
 
 dotenv.config();
 

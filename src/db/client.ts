@@ -1,10 +1,10 @@
 import pg from 'pg';
-import type { Env } from '../config/env.ts';
-import { migration001CreatePaymentIntents } from './migrations/001_create_payment_intents.ts';
-import { migration002CreatePaymentProofs } from './migrations/002_create_payment_proofs.ts';
-import { migration003CreatePaymentSettlements } from './migrations/003_create_payment_settlements.ts';
+import type { Pool } from 'pg';
+import type { Env } from '../config/env.js';
+import { migration001CreatePaymentIntents } from './migrations/001_create_payment_intents.js';
+import { migration002CreatePaymentProofs } from './migrations/002_create_payment_proofs.js';
+import { migration003CreatePaymentSettlements } from './migrations/003_create_payment_settlements.js';
 
-const { Pool } = pg;
 
 export type DbClient = {
   configured: boolean;
@@ -40,7 +40,7 @@ export function createDbClient(env: Env): DbClient {
 
   return {
     configured: true,
-    pool: new Pool({
+    pool: new pg.Pool({
       connectionString: env.DATABASE_URL,
     }),
   };
