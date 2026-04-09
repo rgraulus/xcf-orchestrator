@@ -162,6 +162,7 @@ export async function internalPaymentRoutes(
       return {
         ok: true,
         ready,
+        reason: ready ? 'proof_present' : 'proof_missing',
       };
     } catch (error) {
       reply.code(500);
