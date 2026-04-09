@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import type { DbClient } from '../../db/client.ts';
-import { assertInternalAuth } from '../../auth/internal.ts';
+import type { DbClient } from '../../db/client.js';
+import { assertInternalAuth } from '../../auth/internal.js';
 import {
   getLatestPaymentSettlementByChallengeId,
   getPaymentIntentByChallengeId,
@@ -8,7 +8,7 @@ import {
   insertPaymentProof,
   insertPaymentSettlement,
   paymentProofExists,
-} from '../../db/client.ts';
+} from '../../db/client.js';
 
 type CreateIntentBody = {
   challengeId: string;

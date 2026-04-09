@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import type { DbClient } from '../db/client.ts';
-import { checkDbReady } from '../db/client.ts';
+import type { DbClient } from '../db/client.js';
+import { checkDbReady } from '../db/client.js';
 
 export async function healthRoutes(app: FastifyInstance, db: DbClient) {
   app.get('/healthz', async () => {
