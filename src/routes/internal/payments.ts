@@ -1,6 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { DbClient } from '../../db/client.js';
 import { assertInternalAuth } from '../../auth/internal.js';
+import { createCrpClient } from '../../crp/client.js';
+import { createCrpWrapper } from '../../crp/wrapper.js';
 import {
   getLatestPaymentSettlementByChallengeId,
   getPaymentIntentByChallengeId,
@@ -22,6 +24,9 @@ export async function internalPaymentRoutes(
   db: DbClient,
   internalApiKey?: string
 ) {
+  const crpBaseUrl = process.env.CRP_BASE_URL ?? 'http://127.0.0.1:8080';
+  const crpWrapper = createCrpWrapper(createCrpClient(crpBaseUrl));
+
   app.post('/internal/payments/intents', async (request, reply) => {
     if (!assertInternalAuth(request, reply, internalApiKey)) {
       return;
@@ -157,12 +162,60 @@ export async function internalPaymentRoutes(
         };
       }
 
-      const ready = await paymentProofExists(db, body.challengeId);
+      const settlement = await crpWrapper.isSettlementReady({
+        challengeId: body.challengeId,
+        nonce: intent.nonce,
+        merchantId: intent.merchantId,
+        network: 'concordium:testnet',
+        asset: {
+          type: 'PLT',
+          tokenId: 'EUDemo',
+          decimals: 6,
+        },
+      });
+
+      const proofReady = await paymentProofExists(db, body.challengeId);
+
+      if (settlement.ready !== proofReady) {
+        request.log.warn(
+          {
+            challengeId: body.challengeId,
+            proofReady,
+            settlementReady: settlement.ready,
+            settlementReason: settlement.reason,
+            settlementTier: settlement.tier,
+            settlementEvidence: settlement.evidence,
+          },
+          'release-check advisory disagreement'
+        );
+      }
+
+      if (settlement.ready) {
+        return {
+          ok: true,
+          ready: true,
+          reason: settlement.reason,
+          advisory: {
+            source: 'crp_wrapper',
+            tier: settlement.tier,
+            evidence: settlement.evidence,
+          },
+        };
+      }
 
       return {
         ok: true,
-        ready,
-        reason: ready ? 'proof_present' : 'proof_missing',
+        ready: proofReady,
+        reason: proofReady ? 'proof_present' : settlement.reason,
+        advisory: {
+          source: 'crp_wrapper',
+          tier: settlement.tier,
+          evidence: settlement.evidence,
+          settlementReady: settlement.ready,
+          settlementReason: settlement.reason,
+          proofReady,
+          fallbackApplied: true,
+        },
       };
     } catch (error) {
       reply.code(500);
