@@ -11,6 +11,8 @@ export type SettlementReadinessReason =
   | 'settlement_finalized'
   | 'settlement_ambiguous'
   | 'crp_unavailable'
+  | 'crp_http_error'
+  | 'crp_invalid_response'
   | 'correlation_insufficient';
 
 export type SettlementReadinessInput = {
@@ -70,3 +72,24 @@ export type CrpPaymentSearchResponse = {
   ok?: boolean;
   matches?: CrpPaymentSearchItem[];
 };
+
+export type CrpClientErrorKind =
+  | 'unreachable'
+  | 'http_error'
+  | 'invalid_response';
+
+export type CrpSearchPaymentsSuccess = {
+  ok: true;
+  data: CrpPaymentSearchResponse;
+};
+
+export type CrpSearchPaymentsFailure = {
+  ok: false;
+  kind: CrpClientErrorKind;
+  status?: number;
+  message: string;
+};
+
+export type CrpSearchPaymentsResult =
+  | CrpSearchPaymentsSuccess
+  | CrpSearchPaymentsFailure;
