@@ -1,4 +1,5 @@
 import type { CrpClient } from './client.js';
+import { resolveConcordiumChain } from '../chainId.js';
 import type {
   CrpPaymentSearchItem,
   CrpReceiptPayload,
@@ -9,6 +10,14 @@ import type {
 
 export interface CrpWrapper {
   isSettlementReady(input: SettlementReadinessInput): Promise<SettlementReadinessResult>;
+}
+
+function resolveSettlementInputChain(input: SettlementReadinessInput) {
+  const raw = input.chain_id ?? input.network;
+  if (!raw) {
+    return null;
+  }
+  return resolveConcordiumChain(raw);
 }
 
 function assetMatches(
@@ -47,6 +56,8 @@ function deriveMatchedBy(
   item: CrpPaymentSearchItem,
 ): Array<'nonce' | 'merchantId' | 'txHash' | 'network' | 'asset'> {
   const matchedBy: Array<'nonce' | 'merchantId' | 'txHash' | 'network' | 'asset'> = [];
+  const resolved = resolveSettlementInputChain(input);
+  const expectedNetwork = resolved?.networkAlias ?? input.network;
 
   if (item.nonce === input.nonce) {
     matchedBy.push('nonce');
@@ -56,7 +67,7 @@ function deriveMatchedBy(
     matchedBy.push('merchantId');
   }
 
-  if (item.network === input.network) {
+  if (expectedNetwork && item.network === expectedNetwork) {
     matchedBy.push('network');
   }
 
@@ -117,6 +128,9 @@ function classifyMatch(item: CrpPaymentSearchItem): {
 }
 
 function isCorrelated(input: SettlementReadinessInput, item: CrpPaymentSearchItem): boolean {
+  const resolved = resolveSettlementInputChain(input);
+  const expectedNetwork = resolved?.networkAlias ?? input.network;
+
   if (item.nonce !== input.nonce) {
     return false;
   }
@@ -125,7 +139,7 @@ function isCorrelated(input: SettlementReadinessInput, item: CrpPaymentSearchIte
     return false;
   }
 
-  if (item.network !== input.network) {
+  if (!expectedNetwork || item.network !== expectedNetwork) {
     return false;
   }
 
@@ -175,7 +189,9 @@ function mapClientFailureToReadiness(
 export function createCrpWrapper(client: CrpClient): CrpWrapper {
   return {
     async isSettlementReady(input: SettlementReadinessInput): Promise<SettlementReadinessResult> {
-      if (!input.nonce || !input.merchantId || !input.network) {
+      const resolved = resolveSettlementInputChain(input);
+
+      if (!input.nonce || !input.merchantId || !resolved) {
         return {
           ok: true,
           ready: false,
@@ -187,7 +203,7 @@ export function createCrpWrapper(client: CrpClient): CrpWrapper {
       const searchResult = await client.searchPayments({
         merchantId: input.merchantId,
         nonce: input.nonce,
-        network: input.network,
+        network: resolved.networkAlias,
         tokenId: input.asset?.tokenId,
         limit: 10,
       });

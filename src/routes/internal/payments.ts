@@ -3,6 +3,7 @@ import type { DbClient } from '../../db/client.js';
 import { assertInternalAuth } from '../../auth/internal.js';
 import { createCrpClient } from '../../crp/client.js';
 import { createCrpWrapper } from '../../crp/wrapper.js';
+import { CONCORDIUM_TESTNET_CHAIN_ID } from '../../chainId.js';
 import {
   getLatestPaymentSettlementByChallengeId,
   getPaymentIntentByChallengeId,
@@ -166,7 +167,7 @@ export async function internalPaymentRoutes(
         challengeId: body.challengeId,
         nonce: intent.nonce,
         merchantId: intent.merchantId,
-        network: 'concordium:testnet',
+        chain_id: CONCORDIUM_TESTNET_CHAIN_ID,
         asset: {
           type: 'PLT',
           tokenId: 'EUDemo',
