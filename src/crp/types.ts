@@ -19,7 +19,8 @@ export type SettlementReadinessInput = {
   challengeId: string;
   nonce: string;
   merchantId: string;
-  network: string;
+  chain_id?: string;
+  network?: string;
   asset?: {
     type?: string;
     tokenId?: string;
